@@ -18,15 +18,12 @@ public class JpaMain {
             member.setAge(10);
             entityManager.persist(member);
 
-            // TypeQuery: 반환 타입 명확
-            TypedQuery<Member> query
-                    = entityManager.createQuery("SELECT m FROM Member m WHERE m.id = 10", Member.class);
-            // query.getSingleResult()
-
-            Member result = query.getSingleResult();
-            System.out.println("result = " + result);
-            // -> 결과 없으면 NoResultException (Spring Data JPA에서는 이상 없음)
-            // -> 결과 두개 이상이면 NonUniqueResultException
+            // 파라미터 바인딩
+            Member result
+                    = entityManager.createQuery("SELECT m FROM Member m WHERE m.username = :username", Member.class)
+                    .setParameter("username", "member1")
+                    .getSingleResult();
+            System.out.println("singleResult = " + result);
 
             transaction.commit();
         } catch (Exception e) {

@@ -20,13 +20,13 @@ public class JpaMain {
 
             // TypeQuery: 반환 타입 명확
             TypedQuery<Member> query
-                    = entityManager.createQuery("SELECT m FROM Member m", Member.class);
-            TypedQuery<String> query2
-                    = entityManager.createQuery("SELECT m.username from Member m", String.class);
-            // Query: 반환 타입이 명확하지 않을 때
-            Query query3 
-                    = entityManager.createQuery("SELECT m.username, m.age from Member m");
+                    = entityManager.createQuery("SELECT m FROM Member m WHERE m.id = 10", Member.class);
+            // query.getSingleResult()
 
+            Member result = query.getSingleResult();
+            System.out.println("result = " + result);
+            // -> 결과 없으면 NoResultException (Spring Data JPA에서는 이상 없음)
+            // -> 결과 두개 이상이면 NonUniqueResultException
 
             transaction.commit();
         } catch (Exception e) {

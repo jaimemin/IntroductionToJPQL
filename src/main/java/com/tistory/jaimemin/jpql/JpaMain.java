@@ -29,16 +29,37 @@ public class JpaMain {
             entityManager.flush();
             entityManager.clear();
 
-            String query = "SELECT m.username, 'HELLO', true FROM Member m " +
-                    "WHERE m.memberType = :userType";
-            List<Object[]> result = entityManager.createQuery(query)
-                            .setParameter("userType", MemberType.ADMIN) // 하드코딩 시 패키지명 다 넣어야함
+            // QueryDSL로는 쉽게 작성 가능
+            // String add는 힘듬
+            String query = "SELECT " +
+                    "CASE WHEN m.age <= 10 then '학생요금' " +
+                    "WHEN m.age >= 60 then '경로요금' " +
+                    "ELSE '일반요금' " +
+                    "END " +
+                    "FROM Member m";
+            List<String> result = entityManager.createQuery(query, String.class)
+                    .getResultList();
+
+            for (String s : result) {
+                System.out.println("s = " + s);
+            }
+
+            // coalsece
+            String query2 = "SELECT COALESCE(m.username, '이름 없는 회원') as username FROM Member m";
+            List<String> result2 = entityManager.createQuery(query2, String.class)
                             .getResultList();
 
-            for (Object[] objects: result) {
-                System.out.println("objects[0] = " + objects[0]);
-                System.out.println("objects[1] = " + objects[1]);
-                System.out.println("objects[2] = " + objects[2]);
+            for (String s : result2) {
+                System.out.println("s2 = " + s);
+            }
+
+            // NULLIF
+            String query3 = "SELECT NULLIF(m.username, 'member') FROM Member m";
+            List<String> result3 = entityManager.createQuery(query3, String.class)
+                            .getResultList();
+
+            for (String s : result3) {
+                System.out.println("s3 = " + s);
             }
 
             transaction.commit();

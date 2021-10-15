@@ -14,48 +14,42 @@ public class JpaMain {
         transaction.begin();
 
         try {
-            for (int i = 0; i < 100; i++) {
-                Member member = new Member();
-                member.setUsername("member" + i);
-                member.setAge(i);
+            Team team = new Team();
+            team.setName("team");
+            entityManager.persist(team);
 
-                entityManager.persist(member);
-            }
+            Member member = new Member();
+            member.setUsername("member");
+            member.setAge(10);
+            member.setTeam(team);
+
+            entityManager.persist(member);
 
             entityManager.flush();
             entityManager.clear();
 
-            /**
-             * SELECT
-             *         m
-             *     FROM
-             *         Member m
-             *     ORDER BY
-             *         m.age DESC
-             *
-             *         select
-             *              member0_.id as id1_0_,
-             *              *member0_.age as age2_0_,
-             *              *member0_.TEAM_ID as team_id4_0_,
-             *              *member0_.username as username3_0_
-             *         from
-             *              Member member0_
-             *         order by
-             *              member0_.age DESC limit ?offset ?
-             */
-            List<Member> members
-                    = entityManager.createQuery("SELECT m FROM Member m ORDER BY m.age DESC", Member.class)
-                    .setFirstResult(1)
-                    .setMaxResults(10)
+            String query = "SELECT m FROM Member m INNER JOIN m.team t";
+            List<Member> members = entityManager.createQuery(query, Member.class)
+                            .getResultList();
+
+            String query2 = "SELECT m FROM Member m LEFT OUTER JOIN m.team t";
+            List<Member> leftMembers = entityManager.createQuery(query2, Member.class)
                     .getResultList();
 
-            System.out.println("members.size = " + members.size());
+            // cross join
+            String query3 = "SELECT m FROM Member m, Team t WHERE m.username = t.name";
+            List<Member> thetaMembers = entityManager.createQuery(query3, Member.class)
+                    .getResultList();
 
-            for (Member m : members) {
-                System.out.println("m.getUsername() = " + m.getUsername());
-                System.out.println("m.getAge() = " + m.getAge());
-                System.out.println();
-            }
+            // 조인 대상 필터링
+            String query4 = "SELECT m FROM Member m LEFT JOIN m.team t on t.name = 'teamA'";
+            List<Member> filteringMembers = entityManager.createQuery(query4, Member.class)
+                            .getResultList();
+
+            // 연관관계가 없는 엔티티 외부 조인
+            String query5 = "SELECT m FROM Member m LEFT JOIN Team t on m.username = t.name";
+            List<Member> notRelatedMembers = entityManager.createQuery(query5, Member.class)
+                    .getResultList();
 
             transaction.commit();
         } catch (Exception e) {

@@ -15,119 +15,214 @@ public class JpaMain {
         transaction.begin();
 
         try {
-            Team team = new Team();
-            team.setName("team");
+            Team teamA = new Team();
+            teamA.setName("팀A");
 
-            entityManager.persist(team);
+            entityManager.persist(teamA);
+
+            Team teamB = new Team();
+            teamB.setName("팀B");
+
+            entityManager.persist(teamB);
+
+            Team teamC = new Team();
+            teamC.setName("팀C");
+
+            entityManager.persist(teamC);
 
             Member member1 = new Member();
-            member1.setUsername("관리자1");
-            member1.setTeam(team);
+            member1.setUsername("회원1");
+            member1.setTeam(teamA);
 
             entityManager.persist(member1);
 
             Member member2 = new Member();
-            member2.setUsername("관리자2");
-            member2.setTeam(team);
+            member2.setUsername("회원2");
+            member2.setTeam(teamA);
 
             entityManager.persist(member2);
+
+            Member member3 = new Member();
+            member3.setUsername("회원3");
+            member3.setTeam(teamB);
+
+            entityManager.persist(member3);
+
+            Member member4 = new Member();
+            member4.setUsername("회원4");
+
+            entityManager.persist(member4);
 
             entityManager.flush();
             entityManager.clear();
 
-            /**
-             * select
-             *             member0_.username as col_0_0_
-             *         from
-             *             Member member0_
-             */
-            // 상태 필드: username 이후로 탐색할 곳이 없음 (더 이상 탐색 X)
-            String query = "SELECT m.username FROM Member m";
-            List<String> result = entityManager.createQuery(query, String.class)
+            // LAZY이므로 일단 Member만 (Team X)
+            String query = "SELECT m FROM Member m";
+            List<Member> members = entityManager.createQuery(query, Member.class)
                             .getResultList();
 
-            // s = 관리자1,관리자2
-            for (String s : result) {
-                System.out.println("s = " + s);
+            for (Member m : members) {
+                // LAZY이므로 getTeam()이 호출될 때마다 아래의 쿼리가 호출됨
+                /**
+                 * select
+                 *         team0_.id as id1_3_0_,
+                 *         team0_.name as name2_3_0_
+                 *     from
+                 *         Team team0_
+                 *     where
+                 *         team0_.id=?
+                 */
+                System.out.println("member = " + m.getUsername() + ", " + m.getTeam());
+                /**
+                 * 회원1, 팀A(SQL)
+                 * 회원2, 팀A(PersistenceContext의 1차 캐시에서 불러옴, 즉 별도 쿼리 X)
+                 * 회원3, 팀B(다른 팀이므로 SQL 또 날림)
+                 *
+                 * 회원 100명일 경우 최악의 경우 별도 쿼리 100번 (성능 이슈)
+                 * -> N + 1 문제 발생 [회원을 가져오기 위한 쿼리 1번 + 별도 쿼리 N번]
+                 * 즉시 로딩을 하던 Lazy 로딩을 하던 전부 발생 => 이는 fetch join으로 해결해야함
+                 */
             }
 
             /**
              * select
-             *             team1_.id as id1_3_,
-             *             team1_.name as name2_3_
+             *             member0_.id as id1_0_0_,
+             *             team1_.id as id1_3_1_,
+             *             member0_.age as age2_0_0_,
+             *             member0_.memberType as memberty3_0_0_,
+             *             member0_.TEAM_ID as team_id5_0_0_,
+             *             member0_.username as username4_0_0_,
+             *             team1_.name as name2_3_1_ 
              *         from
-             *             Member member0_
+             *             Member member0_ 
              *         inner join
-             *             Team team1_
+             *             Team team1_ 
              *                 on member0_.TEAM_ID=team1_.id
+             *                 
+             *   JOIN을 통해 한번에 다 가져옴
              */
-            // 단일 값 연관 경로 (@ManyToOne, @OneToOne)
-            // 묵시적 INNER JOIN 발생
-            // team 이후 name으로도 접근 가능 (name은 상태 필드)
-            String query2 = "SELECT m.team FROM Member m";
-            List<Team> teams = entityManager.createQuery(query2, Team.class)
+            String fetchQuery = "SELECT m FROM Member m JOIN FETCH m.team";
+            List<Member> fetchMembers = entityManager.createQuery(fetchQuery, Member.class)
                             .getResultList();
 
-            for (Team t : teams) {
-                System.out.println("team = " + t);
+            for (Member m : fetchMembers) {
+                // 루프를 돌 떄 프록시가 아닌 진짜 데이터가 존재
+                // 따라서, 지연로딩 없이 깔끔하게 쿼리 1번으로 필요한 데이터 들고 옴
+                System.out.println("m = " + m.getUsername() + ", " + m.getTeam());
             }
 
             /**
              * select
-             *             members1_.id as id1_0_,
-             *             members1_.age as age2_0_,
-             *             members1_.memberType as memberty3_0_,
-             *             members1_.TEAM_ID as team_id5_0_,
-             *             members1_.username as username4_0_
+             *             team0_.id as id1_3_0_,
+             *             members1_.id as id1_0_1_,
+             *             team0_.name as name2_3_0_,
+             *             members1_.age as age2_0_1_,
+             *             members1_.memberType as memberty3_0_1_,
+             *             members1_.TEAM_ID as team_id5_0_1_,
+             *             members1_.username as username4_0_1_,
+             *             members1_.TEAM_ID as team_id5_0_0__,
+             *             members1_.id as id1_0_0__
              *         from
              *             Team team0_
              *         inner join
              *             Member members1_
              *                 on team0_.id=members1_.TEAM_ID
              */
-            // 컬렉션 값 연관 경로 (@OneToMany, @ManyToMany)
-            // 묵시적 INNER JOIN 발생
-            // 추가 탐색 X
-            String query3 = "SELECT t.members FROM Team t";
-            Collection members = entityManager.createQuery(query3, Collection.class)
+            // 1:다 join은 뻥튀기될 가능성이 있음
+            String teamQuery = "SELECT t FROM Team t JOIN FETCH t.members";
+            List<Team> teams = entityManager.createQuery(teamQuery, Team.class)
                             .getResultList();
 
-            System.out.println("members = " + members);
-
             /**
-             * select
-             *             (select
-             *                 count(members1_.TEAM_ID)
-             *             from
-             *                 Member members1_
-             *             where
-             *                 team0_.id=members1_.TEAM_ID) as col_0_0_
-             *         from
-             *             Team team0_
+             * team = 팀A|members = 2
+             * m = Member{id=4, username='회원1', age=0, team=com.tistory.jaimemin.jpql.Team@57540fd0, memberType=null}
+             * m = Member{id=5, username='회원2', age=0, team=com.tistory.jaimemin.jpql.Team@57540fd0, memberType=null}
+             * team = 팀A|members = 2
+             * m = Member{id=4, username='회원1', age=0, team=com.tistory.jaimemin.jpql.Team@57540fd0, memberType=null}
+             * m = Member{id=5, username='회원2', age=0, team=com.tistory.jaimemin.jpql.Team@57540fd0, memberType=null}
+             * team = 팀B|members = 1
+             * m = Member{id=6, username='회원3', age=0, team=com.tistory.jaimemin.jpql.Team@3a627c80, memberType=null}
              */
-            // membersSize = 2
-            // 탐색 X, 리스트의 메서드
-            String query4 = "SELECT t.members.size FROM Team t";
-            Integer membersSize = entityManager.createQuery(query4, Integer.class)
-                            .getSingleResult();
+            // 왜 teamA가 두 번 출력될까?
+            for (Team team : teams) {
+                System.out.println("team = " + team.getName() + "|members = " + team.getMembers().size());
 
-            System.out.println("membersSize = " + membersSize);
+                for (Member m : team.getMembers()) {
+                    System.out.println("m = " + m);
+                }
+            }
 
             /**
              * select
-             *             members1_.username as col_0_0_
+             *             distinct team0_.id as id1_3_0_,
+             *             members1_.id as id1_0_1_,
+             *             team0_.name as name2_3_0_,
+             *             members1_.age as age2_0_1_,
+             *             members1_.memberType as memberty3_0_1_,
+             *             members1_.TEAM_ID as team_id5_0_1_,
+             *             members1_.username as username4_0_1_,
+             *             members1_.TEAM_ID as team_id5_0_0__,
+             *             members1_.id as id1_0_0__
              *         from
              *             Team team0_
              *         inner join
              *             Member members1_
              *                 on team0_.id=members1_.TEAM_ID
              */
-            // FROM 절에서 명시적 조인을 통해 별칭을 얻으면 별칭을 통해 탐색 가능
-            String query5 = "SELECT m.username FROM Team t join t.members m";
-            List<String> usernames = entityManager.createQuery(query5, String.class)
+            // SQL의 DISTINCT 키워드 만으로는 distinct 안됨
+            // JPA에서는 같은 식별자를 가진 Team 엔티티 제거
+            String distinctQuery = "SELECT DISTINCT t FROM Team t JOIN FETCH t.members";
+            List<Team> distinctTeams = entityManager.createQuery(distinctQuery, Team.class)
                             .getResultList();
 
-            System.out.println("usernames = " + usernames);
+            /**
+             * team = 팀A|members = 2
+             * m = Member{id=4, username='회원1', age=0, team=com.tistory.jaimemin.jpql.Team@57540fd0, memberType=null}
+             * m = Member{id=5, username='회원2', age=0, team=com.tistory.jaimemin.jpql.Team@57540fd0, memberType=null}
+             * team = 팀B|members = 1
+             * m = Member{id=6, username='회원3', age=0, team=com.tistory.jaimemin.jpql.Team@3a627c80, memberType=null}
+             */
+            for (Team team : distinctTeams) {
+                System.out.println("team = " + team.getName() + "|members = " + team.getMembers().size());
+
+                for (Member m : team.getMembers()) {
+                    System.out.println("m = " + m);
+                }
+            }
+
+            /**
+             * select
+             *             team0_.id as id1_3_,
+             *             team0_.name as name2_3_
+             *         from
+             *             Team team0_
+             *         inner join
+             *             Member members1_
+             *                 on team0_.id=members1_.TEAM_ID
+             */
+            // LAZY이므로 Team만 불러옴 (Member x)
+            String withoutFetchQuery = "SELECT t FROM Team t join t.members m";
+            List<Team> withoutFetchTeams = entityManager.createQuery(withoutFetchQuery, Team.class)
+                            .getResultList();
+
+            // fetch join의 경우 페이징 API 적용이 안됨
+            String pagingQuery = "SELECT t FROM Team t";
+            List<Team> pagingTeams = entityManager.createQuery(pagingQuery, Team.class)
+                    .setFirstResult(0)
+                    .setMaxResults(2)
+                    .getResultList();
+
+            for (Team team : pagingTeams) {
+                System.out.println("team = " + team.getName() + "|members = " + team.getMembers().size());
+
+                // LAZY여서 성능이 안 나옴
+                // @BatchSize 어노테이션을 통해 LAZY 로딩 시 BatchSize만큼 넘기기 때문에
+                // 쿼리 3개가 아닌 2개만 날림 (TeamA와 TeamB에 대해)
+                // [N + 1] 문제 해결법 중 하나
+                for (Member m : team.getMembers()) {
+                    System.out.println("m = " + m);
+                }
+            }
 
             transaction.commit();
         } catch (Exception e) {

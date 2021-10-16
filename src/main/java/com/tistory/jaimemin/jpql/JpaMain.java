@@ -53,26 +53,26 @@ public class JpaMain {
 
             entityManager.persist(member4);
 
-            entityManager.flush();
+//            entityManager.flush();
+//            entityManager.clear();
+
+            // 전부 20살로 업데이트
+            // persist 했으므로 FLUSH는 된 상황
+            int resultCount = entityManager.createQuery("UPDATE Member m SET m.age = 20")
+                    .executeUpdate();
+
+            System.out.println("resultCount = " + resultCount);
+
+            // clear 안했으므로 영속성 컨텍스트에는 반영 안되어있음
+            System.out.println("member1.getAge() = " + member1.getAge());
+            System.out.println("member2.getAge() = " + member1.getAge());
+            System.out.println("member3.getAge() = " + member1.getAge());
+            // 따라서, 영속성 컨텍스트 초기화해주는 것이 중요
             entityManager.clear();
 
-            /**
-             * select
-             *         member0_.id as id1_0_,
-             *         member0_.age as age2_0_,
-             *         member0_.memberType as memberty3_0_,
-             *         member0_.TEAM_ID as team_id5_0_,
-             *         member0_.username as username4_0_
-             *     from
-             *         Member member0_
-             *     where
-             *         member0_.username=?
-             */
-            Member foundMember = entityManager.createNamedQuery("Member.findByUsername", Member.class)
-                            .setParameter("username", "회원1")
-                            .getSingleResult();
+            Member foundMember = entityManager.find(Member.class, member1.getId());
 
-            System.out.println("foundMember = " + foundMember);
+            System.out.println("foundMember.getAge() = " + foundMember.getAge());
 
             transaction.commit();
         } catch (Exception e) {

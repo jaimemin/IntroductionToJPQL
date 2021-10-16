@@ -58,36 +58,21 @@ public class JpaMain {
 
             /**
              * select
-             *         team0_.id as id1_3_0_,
-             *         team0_.name as name2_3_0_ 
+             *         member0_.id as id1_0_,
+             *         member0_.age as age2_0_,
+             *         member0_.memberType as memberty3_0_,
+             *         member0_.TEAM_ID as team_id5_0_,
+             *         member0_.username as username4_0_
              *     from
-             *         Team team0_
+             *         Member member0_
              *     where
-             *         team0_.id=?
+             *         member0_.username=?
              */
-            // 엔티티 자체를 파라미터로 넘길 수 있음
-            String query = "SELECT m FROM Member m WHERE m = :member";
-            Member foundMember = entityManager.createQuery(query, Member.class)
-                            .setParameter("member", member1)
+            Member foundMember = entityManager.createNamedQuery("Member.findByUsername", Member.class)
+                            .setParameter("username", "회원1")
                             .getSingleResult();
 
             System.out.println("foundMember = " + foundMember);
-
-            /**
-             * select
-             *         team0_.id as id1_3_0_,
-             *         team0_.name as name2_3_0_
-             *     from
-             *         Team team0_
-             *     where
-             *         team0_.id=?
-             */
-            String foreignKeyQuery = "SELECT m FROM Member m WHERE m.team = :team";
-            Member foundTeamMember = entityManager.createQuery(foreignKeyQuery, Member.class)
-                            .setParameter("team", teamB)
-                            .getSingleResult();
-
-            System.out.println("foundTeamMember = " + foundTeamMember);
 
             transaction.commit();
         } catch (Exception e) {
